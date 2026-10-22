@@ -1,0 +1,43 @@
+name: SXN Membership Sync
+
+on:
+ schedule:
+   - cron: "*/5 * * * *"
+ workflow_dispatch:
+
+permissions:
+ contents: read
+
+concurrency:
+ group: sxn-membership-sync
+ cancel-in-progress: false
+
+jobs:
+ sync:
+   runs-on: ubuntu-latest
+   timeout-minutes: 2
+   steps:
+     - name: Trigger membership synchronization
+       env:
+         CRON_URL: ${{ secrets.SXN_CRON_URL }}
+         CRON_SECRET: ${{ secrets.SXN_CRON_SECRET }}
+       run: |
+         set +x
+         if [ -z "$CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+           echo "Missing required GitHub Actions secrets."
+           exit 1
+         fi
+         status=$(curl --silent --show-error \
+           --output /dev/null \
+           --write-out "%{http_code}" \
+           --max-time 60 \
+           --request POST \
+           --header "Authorization: Bearer $CRON_SECRET" \
+           --header "Content-Type: application/json" \
+           --data '{}' \
+           "$CRON_URL")
+         echo "Scheduler endpoint HTTP status: $status"
+         case "$status" in
+           2*) ;;
+           *) exit 1 ;;
+         esac
